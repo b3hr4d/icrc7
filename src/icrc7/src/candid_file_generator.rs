@@ -1,4 +1,4 @@
-use candid::{export_service, Nat};
+use candid::export_service;
 use crate::{types::*, errors::*};
 use ic_cdk_macros::query;
 

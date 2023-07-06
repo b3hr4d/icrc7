@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
-use candid::{Nat, candid_method};
+use candid::candid_method;
 use ic_cdk_macros::update;
 
 use crate::{types::{TransferArgs, ApprovalArgs, MintArgs}, errors::{TransferError, ApprovalError, MintError}, state::{COLLECTION, Token}};
 
 #[update]
 #[candid_method(update)]
-pub fn icrc7_transfer(arg: TransferArgs) -> Result<Nat, TransferError>{
+pub fn icrc7_transfer(arg: TransferArgs) -> Result<u128, TransferError>{
     let caller = ic_cdk::caller();
     COLLECTION.with(|c|{
         let mut c = c.borrow_mut();
@@ -17,7 +17,7 @@ pub fn icrc7_transfer(arg: TransferArgs) -> Result<Nat, TransferError>{
 
 #[update]
 #[candid_method(update)]
-pub fn icrc7_approve(arg: ApprovalArgs) -> Result<Nat, ApprovalError>{
+pub fn icrc7_approve(arg: ApprovalArgs) -> Result<u128, ApprovalError>{
     let caller = ic_cdk::caller();
     COLLECTION.with(|c|{
         let mut c = c.borrow_mut();
@@ -27,7 +27,7 @@ pub fn icrc7_approve(arg: ApprovalArgs) -> Result<Nat, ApprovalError>{
 
 #[update]
 #[candid_method(update)]
-pub fn icrc7_mint(arg: MintArgs) -> Result<Nat, MintError>{
+pub fn icrc7_mint(arg: MintArgs) -> Result<u128, MintError>{
     let caller = ic_cdk::caller();
     COLLECTION.with(|c|{
         let mut c = c.borrow_mut();

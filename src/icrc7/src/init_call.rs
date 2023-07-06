@@ -29,16 +29,16 @@ pub fn init(
     })
 }
 
-#[pre_upgrade]
-pub fn pre_upgrade(){
-    let collection = COLLECTION.with(|c| c.take());
-    ic_cdk::storage::stable_save((collection,)).expect("failed to save stable state");
-}
+// #[pre_upgrade]
+// pub fn pre_upgrade(){
+//     let collection = COLLECTION.with(|c| c.take());
+//     ic_cdk::storage::stable_save((collection,)).expect("failed to save stable state");
+// }
 
-#[post_upgrade]
-pub fn post_upgrade(){
-    let (collection,) = ic_cdk::storage::stable_restore().expect("failed to restore stable state");
-    COLLECTION.with(|c|{
-        *c.borrow_mut() = collection;
-    })
-}
+// #[post_upgrade]
+// pub fn post_upgrade(){
+//     let (collection,) = ic_cdk::storage::stable_restore().expect("failed to restore stable state");
+//     COLLECTION.with(|c|{
+//         *c.borrow_mut() = collection;
+//     })
+// }

@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
-use candid::{Nat, Principal, CandidType, Deserialize};
+use candid::{Principal, CandidType, Deserialize, Encode, Decode};
+use ic_stable_structures::{Storable, BoundedStorable};
 
 pub type Blob = Vec<u8>;
 
@@ -10,6 +11,21 @@ pub type Subaccount = [u8; 32];
 pub struct Account {
     pub owner: Principal,
     pub subaccount: Option<Subaccount>,
+}
+
+impl Storable for Account{
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        std::borrow::Cow::Owned(Encode!(&self).unwrap())
+    }
+    
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for Account{
+    const IS_FIXED_SIZE: bool = false;
+    const MAX_SIZE: u32 = 100;
 }
 
 impl Account{
@@ -26,13 +42,13 @@ pub struct CollectionMetadata {
     pub icrc7_royalty_recipient: Option<Account>,
     pub icrc7_description: Option<String>,
     pub icrc7_image: Option<Blob>, // TBD
-    pub icrc7_total_supply: Nat,
-    pub icrc7_supply_cap: Option<Nat>,
+    pub icrc7_total_supply: u128,
+    pub icrc7_supply_cap: Option<u128>,
 }
 
 #[derive(CandidType)]
 pub enum Metadata{
-    Nat(Nat),
+    Nat(u128),
     Int(i128),
     Text(String),
     Blob(Blob),
@@ -48,7 +64,7 @@ pub struct Standard{
 pub struct TransferArgs{
     pub from: Option<Account>,
     pub to: Account,
-    pub token_ids: Vec<Nat>,
+    pub token_ids: Vec<u128>,
     pub memo: Option<Blob>,
     pub created_at_time: Option<u64>,
     pub is_atomic: Option<bool>,
@@ -58,7 +74,7 @@ pub struct TransferArgs{
 pub struct ApprovalArgs{
     pub from_subaccount: Option<Subaccount>,
     pub to: Principal,
-    pub tokenIds: Option<Vec<Nat>>,
+    pub tokenIds: Option<Vec<u128>>,
     pub expires_at: Option<u64>,
     pub memo: Option<Blob>,
     pub created_at: Option<u64>,
@@ -66,7 +82,7 @@ pub struct ApprovalArgs{
 
 #[derive(CandidType, Deserialize)]
 pub struct MintArgs{
-    pub id: Nat,
+    pub id: u128,
     pub name: String,
     pub description: String,
     pub image: Option<Blob>,
@@ -82,7 +98,7 @@ pub struct InitArg{
     pub royalties_recipient: Option<Account>,
     pub description: Option<String>,
     pub image: Option<Vec<u8>>,
-    pub supply_cap: Option<Nat>,
+    pub supply_cap: Option<u128>,
 }
 
 // #[derive(CandidType, Deserialize)]

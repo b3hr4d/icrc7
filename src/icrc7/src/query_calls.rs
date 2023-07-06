@@ -1,5 +1,5 @@
 use ic_cdk_macros::query;
-use candid::{candid_method, Nat};
+use candid::candid_method;
 
 use crate::{state::COLLECTION, types::{Account, Blob, CollectionMetadata, Metadata, Standard}};
 
@@ -41,13 +41,13 @@ pub fn icrc7_image() -> Option<Blob>{
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_total_supply() -> Nat{
+pub fn icrc7_total_supply() -> u128{
     COLLECTION.with(|c| c.borrow().total_supply())
 }
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_supply_cap() -> Option<Nat>{
+pub fn icrc7_supply_cap() -> Option<u128>{
     COLLECTION.with(|c| c.borrow().supply_cap())
 }
 
@@ -59,25 +59,25 @@ pub fn icrc7_collection_metadata() -> CollectionMetadata{
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_metadata(id: Nat) -> Vec<(String, Metadata)>{
+pub fn icrc7_metadata(id: u128) -> Vec<(String, Metadata)>{
     COLLECTION.with(|c| c.borrow().token_metadata(&id))
 } 
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_owner_of(id: Nat) -> Account{
+pub fn icrc7_owner_of(id: u128) -> Account{
     COLLECTION.with(|collection| collection.borrow().owner_of(&id))
 }
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_balance_of(account: Account) -> Nat{
+pub fn icrc7_balance_of(account: Account) -> u128{
     COLLECTION.with(|collection| collection.borrow().balance_of(&account))
 }
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_tokens_of(account: Account) -> Vec<Nat>{
+pub fn icrc7_tokens_of(account: Account) -> Vec<u128>{
     COLLECTION.with(|collection| collection.borrow().tokens_of(&account))
 }
 

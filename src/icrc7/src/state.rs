@@ -1,9 +1,10 @@
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
 };
 
-use candid::{CandidType, Nat, Principal};
+use candid::{CandidType, Principal, Encode, Decode};
+use ic_stable_structures::{Storable, BoundedStorable, DefaultMemoryImpl, memory_manager::{MemoryManager, VirtualMemory, MemoryId}, StableBTreeMap,};
 use serde::Deserialize;
 
 use crate::{
@@ -11,20 +12,52 @@ use crate::{
     types::{Account, ApprovalArgs, Blob, CollectionMetadata, Metadata, TransferArgs},
 };
 
+type Memory = VirtualMemory<DefaultMemoryImpl>;
+
 #[derive(CandidType, Deserialize, PartialEq, Eq, Hash)]
 pub struct Approval {
     pub account: Account,
     pub expires_at: Option<u64>,
 }
 
+impl Storable for Approval{
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        std::borrow::Cow::Owned(Encode!(&self).unwrap())
+    }
+    
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for Approval{
+    const IS_FIXED_SIZE: bool = false;
+    const MAX_SIZE: u32 = 110;
+}
+
 #[derive(CandidType, Deserialize)]
 pub struct Token {
-    pub id: Nat,
+    pub id: u128,
     pub name: String,
     pub description: String,
     pub image: Option<Blob>,
     pub owner: Account,
     pub approvals: HashSet<Approval>,
+}
+
+impl Storable for Token{
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        std::borrow::Cow::Owned(Encode!(&self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for Token{
+    const IS_FIXED_SIZE: bool = false;
+    const MAX_SIZE: u32 = 1000;
 }
 
 impl Token {
@@ -74,7 +107,6 @@ impl Token {
     }
 }
 
-#[derive(CandidType, Deserialize)]
 pub struct Collection {
     // name of the collection
     pub name: String,
@@ -86,11 +118,11 @@ pub struct Collection {
     pub royalty_recipient: Option<Account>,
     pub description: Option<String>,
     pub image: Option<Blob>,
-    pub total_supply: Nat,
+    pub total_supply: u128,
     // max supply cap
-    pub supply_cap: Option<Nat>,
-    pub tokens: HashMap<Nat, Token>,
-    pub tx_count: Nat,
+    pub supply_cap: Option<u128>,
+    pub tokens: StableBTreeMap<u128, Token, Memory>,
+    pub tx_count: u128,
 }
 
 impl Default for Collection {
@@ -103,17 +135,17 @@ impl Default for Collection {
             royalty_recipient: None,
             description: None,
             image: None,
-            total_supply: Nat::from(0),
+            total_supply: 0,
             supply_cap: None,
-            tokens: HashMap::new(),
-            tx_count: Nat::from(0),
+            tokens: StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0)))),
+            tx_count: 0,
         }
     }
 }
 
 impl Collection {
-    fn get_tx_id(&mut self) -> Nat {
-        self.tx_count += Nat::from(1);
+    fn get_tx_id(&mut self) -> u128 {
+        self.tx_count += 1;
         self.tx_count.clone()
     }
 
@@ -141,11 +173,11 @@ impl Collection {
         self.image.clone()
     }
 
-    pub fn total_supply(&self) -> Nat {
+    pub fn total_supply(&self) -> u128 {
         self.total_supply.clone()
     }
 
-    pub fn supply_cap(&self) -> Option<Nat> {
+    pub fn supply_cap(&self) -> Option<u128> {
         self.supply_cap.clone()
     }
 
@@ -162,7 +194,7 @@ impl Collection {
         }
     }
 
-    pub fn mint(&mut self, caller: &Principal, token: Token) -> Result<Nat, MintError> {
+    pub fn mint(&mut self, caller: &Principal, token: Token) -> Result<u128, MintError> {
         if *caller != self.minting_authority {
             return Err(MintError::Unauthorized {
                 minting_authority: self.minting_authority.clone(),
@@ -173,19 +205,22 @@ impl Collection {
                 return Err(MintError::SupplyCapReached);
             }
         }
-        self.total_supply += Nat::from(1);
+        if self.tokens.contains_key(&token.id){
+            ic_cdk::trap("Id Exist")
+        }
+        self.total_supply += 1;
         self.tokens.insert(token.id.clone(), token);
         Ok(self.get_tx_id())
     }
 
-    pub fn owner_of(&self, id: &Nat) -> Account {
+    pub fn owner_of(&self, id: &u128) -> Account {
         match self.tokens.get(id) {
             None => ic_cdk::trap("Invalid Token Id"),
             Some(token) => token.owner.clone(),
         }
     }
 
-    pub fn tokens_of(&self, account: &Account) -> Vec<Nat> {
+    pub fn tokens_of(&self, account: &Account) -> Vec<u128> {
         let mut ids = vec![];
         for (id, token) in self.tokens.iter() {
             if token.owner == *account {
@@ -195,25 +230,25 @@ impl Collection {
         ids
     }
 
-    pub fn token_metadata(&self, id: &Nat) -> Vec<(String, Metadata)> {
+    pub fn token_metadata(&self, id: &u128) -> Vec<(String, Metadata)> {
         match self.tokens.get(id) {
             Some(token) => token.metadata(),
             None => ic_cdk::trap("Invalid Id"),
         }
     }
 
-    pub fn balance_of(&self, account: &Account) -> Nat {
-        let mut balance = Nat::from(0);
+    pub fn balance_of(&self, account: &Account) -> u128 {
+        let mut balance = 0;
         for (_, token) in self.tokens.iter() {
             if token.owner == *account {
-                balance += Nat::from(1);
+                balance += 1;
                 continue;
             }
         }
         balance
     }
 
-    pub fn check_approval(&self, id: &Nat, account: &Account) -> bool {
+    pub fn check_approval(&self, id: &u128, account: &Account) -> bool {
         match self.tokens.get(id) {
             None => ic_cdk::trap("Invalid Token Id"),
             Some(token) => token.approval_check(account),
@@ -224,7 +259,7 @@ impl Collection {
         &mut self,
         caller: &Principal,
         arg: TransferArgs,
-    ) -> Result<Nat, TransferError> {
+    ) -> Result<u128, TransferError> {
         let auth = match arg.from {
             Some(from) => from,
             None => Account::from_principal(caller),
@@ -242,7 +277,7 @@ impl Collection {
         let user_tokens = self.tokens_of(&auth);
         if arg.token_ids.len() == 0 {
             return Err(TransferError::GenericError {
-                error_code: Nat::from(2),
+                error_code: 2,
                 msg: "token_ids can't be empty".into(),
             });
         }
@@ -263,14 +298,14 @@ impl Collection {
         }
         for id in arg.token_ids {
             self.tokens
-                .get_mut(&id)
+                .get(&id)
                 .unwrap()
                 .transfer(&auth, arg.to.clone())?;
         }
         Ok(self.get_tx_id())
     }
 
-    pub fn approve(&mut self, caller: &Principal, arg: ApprovalArgs) -> Result<Nat, ApprovalError> {
+    pub fn approve(&mut self, caller: &Principal, arg: ApprovalArgs) -> Result<u128, ApprovalError> {
         let caller = Account {
             owner: caller.clone(),
             subaccount: arg.from_subaccount,
@@ -288,7 +323,7 @@ impl Collection {
                 }
                 if unauthorized.len() > 0 {
                     return Err(ApprovalError::Unauthorized {
-                        tokens_ids: unauthorized,
+                        tokens_ids: unauthorized
                     });
                 } else {
                     ids
@@ -302,7 +337,7 @@ impl Collection {
                 expires_at: arg.expires_at,
             };
             self.tokens
-                .get_mut(token)
+                .get(token)
                 .unwrap()
                 .approve(&caller, approval)
                 .map_err(|e| e)?;
@@ -312,5 +347,7 @@ impl Collection {
 }
 
 thread_local! {
+    static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
+        RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
     pub static COLLECTION: RefCell<Collection> = RefCell::default();
 }
