@@ -1,19 +1,10 @@
 {
   "version": 1,
   "canisters": {
-    "icrc7_backend": {
-      "type": "rust",
-      "package": "icrc7_backend",
-      "candid": "src/icrc7_backend/icrc7_backend.did"
-    },
-    "icrc7_frontend": {
-      "type": "assets",
-      "source": [
-        "src/icrc7_frontend/assets"
-      ],
-      "dependencies": [
-        "icrc7_backend"
-      ]
+    "icrc7": {
+      "type": "custom",
+      "candid": "src/icrc7/icrc7.did",
+      "wasm": "target/wasm32-unknown-unknown/release/icrc7.wasm.gz"
     }
   },
   "defaults": {
