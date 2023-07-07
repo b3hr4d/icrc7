@@ -4,17 +4,40 @@ use std::{
 };
 
 use candid::{CandidType, Principal, Encode, Decode};
-use ic_stable_structures::{Storable, BoundedStorable, DefaultMemoryImpl, memory_manager::{MemoryManager, VirtualMemory, MemoryId}, StableBTreeMap,};
-use serde::Deserialize;
+use ic_stable_structures::{Storable, BoundedStorable, DefaultMemoryImpl, memory_manager::{MemoryManager, VirtualMemory, MemoryId}, StableBTreeMap, Log,};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     errors::{ApprovalError, MintError, TransferError},
     types::{Account, ApprovalArgs, Blob, CollectionMetadata, Metadata, TransferArgs},
+    memory::init_stable_data
 };
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 
-#[derive(CandidType, Deserialize, PartialEq, Eq, Hash)]
+#[derive(CandidType, Serialize, Deserialize)]
+pub struct Transaction{
+    pub id: u128,
+    pub memo: Option<[u8; 32]>,
+    pub created_at_time: Option<u64>,
+}
+
+impl Storable for Transaction{
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        std::borrow::Cow::Owned(Encode!(&self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for Transaction{
+    const IS_FIXED_SIZE: bool = false;
+    const MAX_SIZE: u32 = 150;
+}
+
+#[derive(CandidType, Deserialize, PartialEq, Eq, Hash, Serialize, Clone)]
 pub struct Approval {
     pub account: Account,
     pub expires_at: Option<u64>,
@@ -35,7 +58,7 @@ impl BoundedStorable for Approval{
     const MAX_SIZE: u32 = 110;
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Clone)]
 pub struct Token {
     pub id: u128,
     pub name: String,
@@ -107,6 +130,7 @@ impl Token {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Collection {
     // name of the collection
     pub name: String,
@@ -121,8 +145,10 @@ pub struct Collection {
     pub total_supply: u128,
     // max supply cap
     pub supply_cap: Option<u128>,
+    #[serde(skip, default = "init_stable_data")]
     pub tokens: StableBTreeMap<u128, Token, Memory>,
     pub tx_count: u128,
+    // pub log: Log<Transaction, Memory, Memory>
 }
 
 impl Default for Collection {
@@ -139,6 +165,7 @@ impl Default for Collection {
             supply_cap: None,
             tokens: StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0)))),
             tx_count: 0,
+            // log: Log::new(, 0)
         }
     }
 }
@@ -297,10 +324,12 @@ impl Collection {
             }
         }
         for id in arg.token_ids {
-            self.tokens
-                .get(&id)
-                .unwrap()
-                .transfer(&auth, arg.to.clone())?;
+            // self.tokens
+            //     .get(&id)
+            //     .unwrap()
+            //     .transfer(&auth, arg.to.clone())?;
+            let mut token = self.tokens.get(&id).unwrap();
+            token.transfer(&auth, arg.to.clone())?;
         }
         Ok(self.get_tx_id())
     }
@@ -331,23 +360,26 @@ impl Collection {
             }
             None => user_tokens,
         };
-        for token in tokens.iter() {
+        for id in tokens.iter() {
             let approval = Approval {
                 account: Account::from_principal(&arg.to),
                 expires_at: arg.expires_at,
             };
-            self.tokens
-                .get(token)
-                .unwrap()
-                .approve(&caller, approval)
-                .map_err(|e| e)?;
+            // self.tokens
+            //     .get(token)
+            //     .unwrap()
+            //     .approve(&caller, approval)
+            //     .map_err(|e| e)?;
+            let mut token = self.tokens.get(id).unwrap();
+            token.approve(&caller, approval)?;
+            self.tokens.insert(*id, token);
         }
         Ok(self.get_tx_id())
     }
 }
 
 thread_local! {
-    static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
+    pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
         RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
     pub static COLLECTION: RefCell<Collection> = RefCell::default();
 }

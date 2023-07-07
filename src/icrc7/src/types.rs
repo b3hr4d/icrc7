@@ -2,12 +2,13 @@
 
 use candid::{Principal, CandidType, Deserialize, Encode, Decode};
 use ic_stable_structures::{Storable, BoundedStorable};
+use serde::Serialize;
 
 pub type Blob = Vec<u8>;
 
 pub type Subaccount = [u8; 32];
 
-#[derive(CandidType, Clone, Deserialize, PartialEq, Eq, Hash)]
+#[derive(CandidType, Clone, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub struct Account {
     pub owner: Principal,
     pub subaccount: Option<Subaccount>,
