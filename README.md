@@ -1,5 +1,7 @@
 # icrc7
 
+<strong>Remaining</strong>
+- [ ] Transaction Deduplication
 
 ## Running the project locally
 
