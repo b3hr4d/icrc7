@@ -1,7 +1,14 @@
 # icrc7
 
-<strong>Remaining</strong>
+## Features
+- [x] Stable Memory
+- [x] Pre and Post upgrading
+
+<strong>Remaining/</strong>
 - [ ] Transaction Deduplication
+- [ ] Chunk Upload for larger images
+- [ ] Transaction Log with filters
+- [ ] HTTP Handling
 
 ## Running the project locally
 
