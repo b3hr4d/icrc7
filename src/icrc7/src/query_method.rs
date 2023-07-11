@@ -1,7 +1,8 @@
 use ic_cdk_macros::query;
 use candid::candid_method;
+use icrc_ledger_types::{icrc1::account::Account, icrc::generic_metadata_value::MetadataValue};
 
-use crate::{state::COLLECTION, types::{Account, Blob, CollectionMetadata, Metadata, Standard}};
+use crate::{state::COLLECTION, types::{CollectionMetadata, Standard}};
 
 #[query]
 #[candid_method(query)]
@@ -35,7 +36,7 @@ pub fn icrc7_description() -> Option<String>{
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_image() -> Option<Blob>{
+pub fn icrc7_image() -> Option<Vec<u8>>{
     COLLECTION.with(|c| c.borrow().image())
 }
 
@@ -59,7 +60,7 @@ pub fn icrc7_collection_metadata() -> CollectionMetadata{
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_metadata(id: u128) -> Vec<(String, Metadata)>{
+pub fn icrc7_metadata(id: u128) -> Vec<(String, MetadataValue)>{
     COLLECTION.with(|c| c.borrow().token_metadata(&id))
 } 
 

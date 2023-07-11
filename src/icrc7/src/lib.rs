@@ -1,8 +1,9 @@
+pub mod init_method;
 pub mod memory;
-pub mod types;
-pub mod errors;
+pub mod utils;
 pub mod state;
-pub mod init_call;
-pub mod update_calls;
-pub mod query_calls;
+pub mod errors;
+pub mod types;
+pub mod query_method;
+pub mod update_method;
 pub mod candid_file_generator;

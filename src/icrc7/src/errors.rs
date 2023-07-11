@@ -1,6 +1,6 @@
-use candid::{CandidType, Principal};
+use candid::CandidType;
 
-#[derive(CandidType)]
+#[derive(CandidType, Clone)]
 pub enum TransferError{
     Unauthorized{ tokens_ids: Vec<u128> },
     TooOld,
@@ -10,7 +10,7 @@ pub enum TransferError{
     GenericError{ error_code: u128, msg: String },
 }
 
-#[derive(CandidType)]
+#[derive(CandidType, Clone)]
 pub enum ApprovalError{
     Unauthorized{ tokens_ids: Vec<u128> },
     TooOld,
@@ -18,8 +18,8 @@ pub enum ApprovalError{
     GenericError{ error_code: u128, msg: String },
 }
 
-#[derive(CandidType)]
-pub enum MintError{
-    SupplyCapReached,
-    Unauthorized{ minting_authority: Principal },
-}
+// #[derive(CandidType)]
+// pub enum MintError{
+//     SupplyCapReached,
+//     Unauthorized{ minting_authority: Principal },
+// }

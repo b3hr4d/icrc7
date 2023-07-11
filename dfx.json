@@ -5,6 +5,11 @@
       "type": "custom",
       "candid": "src/icrc7/icrc7.did",
       "wasm": "target/wasm32-unknown-unknown/release/icrc7.wasm.gz"
+    },
+    "factory": {
+      "type": "custom",
+      "candid": "src/factory/service.did",
+      "wasm": "target/wasm32-unknown-unknown/release/factory.wasm.gz"
     }
   },
   "defaults": {

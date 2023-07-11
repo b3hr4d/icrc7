@@ -41,7 +41,7 @@ dfx deploy icrc7 --argument '(record {
 dfx canister call icrc7 icrc7_mint '(record{
   id=100;
   name="Icrc7 100";
-  description="100th token of the collection";
+  description=opt "100th token of the collection";
   image=null;
   to=record{
   owner=principal"2vxsx-fae";

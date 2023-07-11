@@ -1,133 +1,179 @@
-use std::{
-    cell::RefCell,
-    collections::HashSet,
-};
+use std::{cell::RefCell, collections::HashMap};
 
-use candid::{CandidType, Principal, Encode, Decode};
-use ic_stable_structures::{Storable, BoundedStorable, DefaultMemoryImpl, memory_manager::{MemoryManager, VirtualMemory, MemoryId}, StableBTreeMap, Log,};
-use serde::{Deserialize, Serialize};
+use candid::{CandidType, Decode, Encode, Nat, Principal};
+use ic_stable_structures::{
+    memory_manager::MemoryManager, BoundedStorable, DefaultMemoryImpl, StableBTreeMap, Storable,
+};
+use icrc_ledger_types::{icrc::generic_metadata_value::MetadataValue, icrc1::account::Account};
+use serde_bytes::ByteBuf;
+use serde_derive::{Deserialize, Serialize};
 
 use crate::{
-    errors::{ApprovalError, MintError, TransferError},
-    types::{Account, ApprovalArgs, Blob, CollectionMetadata, Metadata, TransferArgs},
-    memory::init_stable_data
+    errors::{ApprovalError, TransferError},
+    memory::init_stable_data,
+    memory::Memory,
+    types::{ApprovalArgs, CollectionMetadata, TransferArgs},
+    utils::{account_transformer, default_account},
 };
 
-type Memory = VirtualMemory<DefaultMemoryImpl>;
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Approval {
+    pub expires_at: Option<u64>,
+    pub account: Account,
+}
+
+impl Storable for Approval {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        std::borrow::Cow::Owned(Encode!(&self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for Approval {
+    const IS_FIXED_SIZE: bool = false;
+    const MAX_SIZE: u32 = 100;
+}
+
+impl Approval {
+    pub fn new(account: Account, expires_at: Option<u64>) -> Self {
+        Self {
+            expires_at,
+            account,
+        }
+    }
+}
 
 #[derive(CandidType, Serialize, Deserialize)]
-pub struct Transaction{
-    pub id: u128,
-    pub memo: Option<[u8; 32]>,
-    pub created_at_time: Option<u64>,
-}
-
-impl Storable for Transaction{
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        std::borrow::Cow::Owned(Encode!(&self).unwrap())
-    }
-
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        Decode!(bytes.as_ref(), Self).unwrap()
-    }
-}
-
-impl BoundedStorable for Transaction{
-    const IS_FIXED_SIZE: bool = false;
-    const MAX_SIZE: u32 = 150;
-}
-
-#[derive(CandidType, Deserialize, PartialEq, Eq, Hash, Serialize, Clone)]
-pub struct Approval {
-    pub account: Account,
-    pub expires_at: Option<u64>,
-}
-
-impl Storable for Approval{
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        std::borrow::Cow::Owned(Encode!(&self).unwrap())
-    }
-    
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        Decode!(bytes.as_ref(), Self).unwrap()
-    }
-}
-
-impl BoundedStorable for Approval{
-    const IS_FIXED_SIZE: bool = false;
-    const MAX_SIZE: u32 = 110;
-}
-
-#[derive(CandidType, Deserialize, Serialize, Clone)]
 pub struct Token {
     pub id: u128,
-    pub name: String,
-    pub description: String,
-    pub image: Option<Blob>,
     pub owner: Account,
-    pub approvals: HashSet<Approval>,
-}
-
-impl Storable for Token{
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        std::borrow::Cow::Owned(Encode!(&self).unwrap())
-    }
-
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        Decode!(bytes.as_ref(), Self).unwrap()
-    }
-}
-
-impl BoundedStorable for Token{
-    const IS_FIXED_SIZE: bool = false;
-    const MAX_SIZE: u32 = 1000;
+    pub name: String,
+    pub image: Option<Vec<u8>>,
+    pub description: Option<String>,
+    pub approvals: Vec<Approval>,
 }
 
 impl Token {
-    fn approval_check(&self, account: &Account) -> bool {
-        let current_time = ic_cdk::api::time();
-        self.approvals.iter().any(|approval| {
-            approval.account == *account
-                && (approval.expires_at.is_none() || approval.expires_at >= Some(current_time))
-        })
-    }
-
-    fn transfer(&mut self, caller: &Account, to: Account) -> Result<(), TransferError> {
-        if self.owner == *caller || self.approval_check(&caller) {
-            self.owner = to;
-            self.approvals.clear();
-            Ok(())
-        } else {
-            Err(TransferError::Unauthorized {
-                tokens_ids: vec![self.id.clone()],
-            })
+    pub fn token_metadata(&self) -> Vec<(String, MetadataValue)> {
+        let mut metadata = Vec::new();
+        metadata.push(("Id".to_string(), MetadataValue::Nat(Nat::from(self.id))));
+        metadata.push(("Name".into(), MetadataValue::Text(self.name.clone())));
+        if self.image.is_some() {
+            let buf = ByteBuf::from(self.image.as_ref().unwrap().clone());
+            metadata.push(("Image".into(), MetadataValue::Blob(buf)))
         }
-    }
-
-    fn approve(&mut self, caller: &Account, approval: Approval) -> Result<(), ApprovalError> {
-        if self.owner == *caller {
-            self.approvals.insert(approval);
-            Ok(())
-        } else {
-            Err(ApprovalError::Unauthorized {
-                tokens_ids: vec![self.id.clone()],
-            })
-        }
-    }
-
-    fn metadata(&self) -> Vec<(String, Metadata)> {
-        let mut metadata = vec![
-            ("Name".into(), Metadata::Text(self.name.clone())),
-            (
-                "Description".into(),
-                Metadata::Text(self.description.clone()),
-            ),
-        ];
-        if let Some(ref image) = self.image {
-            metadata.push(("Image".to_string(), Metadata::Blob(image.clone())));
+        if self.description.is_some() {
+            let value = self.description.as_ref().unwrap().clone();
+            metadata.push(("Description".into(), MetadataValue::Text(value)))
         }
         metadata
     }
+
+    pub fn owner(&self) -> Account {
+        self.owner.clone()
+    }
+
+    pub fn approval_check(&self, current_time: u64, account: &Account) -> bool {
+        // self.approvals.iter().any(|approval| {
+        //     ic_cdk::println!("owner: {:?} == {:?} && subaccount {:?} == {:?}", approval.account.owner, account.owner, approval.account.subaccount, account.subaccount);
+        //     approval.account.owner == account.owner && approval.account.subaccount == account.subaccount
+        //         && (approval.expires_at.is_none() || approval.expires_at >= Some(current_time))
+        // })
+        ic_cdk::println!("{}", self.approvals.len());
+        for approval in self.approvals.iter() {
+            ic_cdk::println!("approval.owner: {:?} == account.owner: {:?} && aproval.subaccount: {:?} == account.subaccount: {:?}", approval.account.owner, account.owner, approval.account.subaccount, account.subaccount);
+            // if approval.account.owner == account.owner && approval.account.subaccount == account.subaccount{
+            if approval.account == *account {
+                ic_cdk::println!("was true");
+                if approval.expires_at.is_none() {
+                    return true;
+                } else if approval.expires_at >= Some(current_time) {
+                    return true;
+                }
+            }
+            ic_cdk::println!("was false");
+        }
+        false
+    }
+
+    pub fn approve(&mut self, caller: &Account, approval: Approval) -> Result<(), ApprovalError> {
+        if self.owner == approval.account {
+            ic_cdk::trap("Self Approve")
+        }
+        if *caller != self.owner {
+            return Err(ApprovalError::Unauthorized {
+                tokens_ids: vec![self.id],
+            });
+        } else {
+            self.approvals.push(approval);
+            self.approvals.iter().for_each(|approval| {
+                ic_cdk::println!("{:?}", approval.account);
+            });
+            Ok(())
+        }
+    }
+
+    pub fn transfer(
+        &mut self,
+        permitted_time: u64,
+        caller: &Account,
+        to: Account,
+    ) -> Result<(), TransferError> {
+        if self.owner == to {
+            ic_cdk::trap("Self Transfer")
+        }
+        if self.owner != *caller && !self.approval_check(permitted_time, caller) {
+            return Err(TransferError::Unauthorized {
+                tokens_ids: vec![self.id],
+            })
+        } else {
+            self.owner = to;
+            self.approvals.clear();
+            return Ok(())
+        }
+    }
+}
+
+impl Storable for Token {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        std::borrow::Cow::Owned(Encode!(&self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for Token {
+    const IS_FIXED_SIZE: bool = false;
+    const MAX_SIZE: u32 = 100000;
+}
+
+#[derive(CandidType, Serialize, Deserialize)]
+pub struct TransferLog {
+    pub id: u128,
+    pub at: u64,
+    pub memo: Option<Vec<u8>>,
+    pub from: Account,
+    pub to: Account,
+}
+
+impl Storable for TransferLog {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        std::borrow::Cow::Owned(Encode!(&self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for TransferLog {
+    const IS_FIXED_SIZE: bool = false;
+    const MAX_SIZE: u32 = 200;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -141,14 +187,16 @@ pub struct Collection {
     pub minting_authority: Principal,
     pub royalty_recipient: Option<Account>,
     pub description: Option<String>,
-    pub image: Option<Blob>,
+    pub image: Option<Vec<u8>>,
     pub total_supply: u128,
     // max supply cap
     pub supply_cap: Option<u128>,
     #[serde(skip, default = "init_stable_data")]
     pub tokens: StableBTreeMap<u128, Token, Memory>,
     pub tx_count: u128,
-    // pub log: Log<Transaction, Memory, Memory>
+    // #[serde(skip, default = "init_transfer_stable_data")]
+    // pub transfer_log: StableBTreeMap<u128, TransferLog, Memory>,
+    pub transfer_log: Vec<TransferLog>,
 }
 
 impl Default for Collection {
@@ -163,19 +211,15 @@ impl Default for Collection {
             image: None,
             total_supply: 0,
             supply_cap: None,
-            tokens: StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0)))),
+            tokens: init_stable_data(),
+            // transfer_log: init_transfer_stable_data(),
+            transfer_log: Vec::new(),
             tx_count: 0,
-            // log: Log::new(, 0)
         }
     }
 }
 
 impl Collection {
-    fn get_tx_id(&mut self) -> u128 {
-        self.tx_count += 1;
-        self.tx_count.clone()
-    }
-
     pub fn name(&self) -> String {
         self.name.clone()
     }
@@ -196,7 +240,7 @@ impl Collection {
         self.description.clone()
     }
 
-    pub fn image(&self) -> Option<Blob> {
+    pub fn image(&self) -> Option<Vec<u8>> {
         self.image.clone()
     }
 
@@ -221,23 +265,27 @@ impl Collection {
         }
     }
 
-    pub fn mint(&mut self, caller: &Principal, token: Token) -> Result<u128, MintError> {
+    fn log_transfer_transaction(&mut self, log: TransferLog) {
+        self.transfer_log.push(log);
+    }
+
+    pub fn mint(&mut self, caller: &Principal, token: Token) -> u128 {
         if *caller != self.minting_authority {
-            return Err(MintError::Unauthorized {
-                minting_authority: self.minting_authority.clone(),
-            });
+            ic_cdk::trap("Unauthorized Caller")
         }
         if let Some(ref cap) = self.supply_cap {
             if self.total_supply >= *cap {
-                return Err(MintError::SupplyCapReached);
+                ic_cdk::trap("Supply Cap Reached")
             }
         }
-        if self.tokens.contains_key(&token.id){
+        if self.tokens.contains_key(&token.id) {
             ic_cdk::trap("Id Exist")
         }
         self.total_supply += 1;
         self.tokens.insert(token.id.clone(), token);
-        Ok(self.get_tx_id())
+        let id = self.get_tx_id();
+        ic_cdk::println!("mint tx: {}", id);
+        id
     }
 
     pub fn owner_of(&self, id: &u128) -> Account {
@@ -245,6 +293,11 @@ impl Collection {
             None => ic_cdk::trap("Invalid Token Id"),
             Some(token) => token.owner.clone(),
         }
+    }
+
+    fn get_tx_id(&mut self) -> u128 {
+        self.tx_count += 1;
+        self.tx_count
     }
 
     pub fn tokens_of(&self, account: &Account) -> Vec<u128> {
@@ -257,9 +310,9 @@ impl Collection {
         ids
     }
 
-    pub fn token_metadata(&self, id: &u128) -> Vec<(String, Metadata)> {
+    pub fn token_metadata(&self, id: &u128) -> Vec<(String, MetadataValue)> {
         match self.tokens.get(id) {
-            Some(token) => token.metadata(),
+            Some(token) => token.token_metadata(),
             None => ic_cdk::trap("Invalid Id"),
         }
     }
@@ -275,10 +328,46 @@ impl Collection {
         balance
     }
 
-    pub fn check_approval(&self, id: &u128, account: &Account) -> bool {
-        match self.tokens.get(id) {
-            None => ic_cdk::trap("Invalid Token Id"),
-            Some(token) => token.approval_check(account),
+    pub fn tx_deduplication_check(
+        &self,
+        permitted_past_time: u64,
+        created_at_time: u64,
+        memo: &Option<Vec<u8>>,
+        id: u128,
+    ) -> Option<u128> {
+        if let Some(index) = self
+            .transfer_log
+            .iter()
+            .rev() // reversing
+            .position(|log| {
+                match log.id == id && log.at < permitted_past_time && log.at == created_at_time {
+                    false => false,
+                    true => {
+                        if log.memo != *memo {
+                            return false;
+                        }
+                        true
+                    }
+                }
+            })
+        {
+            Some(index as u128)
+        } else {
+            None
+        }
+    }
+
+    fn id_validity_check(&self, ids: &Vec<u128>) {
+        let mut invalid_ids = vec![];
+        for id in ids.iter() {
+            match self.tokens.get(id) {
+                Some(_) => continue,
+                None => invalid_ids.push(id.clone()),
+            }
+        }
+        if invalid_ids.len() > 0 {
+            let error_msg = format!("Invalid Token Ids: {:?}", invalid_ids);
+            ic_cdk::trap(&error_msg)
         }
     }
 
@@ -287,99 +376,162 @@ impl Collection {
         caller: &Principal,
         arg: TransferArgs,
     ) -> Result<u128, TransferError> {
-        let auth = match arg.from {
-            Some(from) => from,
-            None => Account::from_principal(caller),
-        };
-        if let Some(time) = arg.created_at_time {
-            let current_time = ic_cdk::api::time();
-            if time < current_time {
-                return Err(TransferError::TooOld);
-            } else if time > current_time {
-                return Err(TransferError::CreatedInFuture {
-                    ledger_time: current_time,
-                });
-            }
-        }
-        let user_tokens = self.tokens_of(&auth);
         if arg.token_ids.len() == 0 {
-            return Err(TransferError::GenericError {
-                error_code: 2,
-                msg: "token_ids can't be empty".into(),
-            });
+            ic_cdk::trap("No Token Provided")
         }
-        if let Some(true) | None = arg.is_atomic {
-            let mut unauthorized = vec![];
-            for id in arg.token_ids.iter() {
-                if user_tokens.contains(id) || self.check_approval(id, &auth) {
-                    continue;
-                } else {
-                    unauthorized.push(id.clone())
+        // checking if the token for respective ids is available or not
+        self.id_validity_check(&arg.token_ids);
+        let caller = default_account(caller.clone());
+        ic_cdk::println!("caller: {:}", caller);
+        let to = account_transformer(arg.to);
+        let current_time = ic_cdk::api::time();
+        let mut tx_deduplication: HashMap<u128, TransferError> = HashMap::new();
+        if let Some(arg_time) = arg.created_at_time {
+            let permitted_past_time = current_time - get_tx_window() + get_permitted_drift();
+            let permitted_future_time = current_time + get_permitted_drift();
+            match (
+                arg_time > permitted_past_time,
+                arg_time < permitted_future_time,
+            ) {
+                // checking if time is before permitted_past_time
+                (false, _) => return Err(TransferError::TooOld),
+                // checking if time is ahead of permitted_future_time
+                (_, false) => {
+                    return Err(TransferError::CreatedInFuture {
+                        ledger_time: current_time,
+                    })
                 }
-            }
-            if unauthorized.len() > 0 {
-                return Err(TransferError::Unauthorized {
-                    tokens_ids: unauthorized,
-                });
+                (true, true) => arg.token_ids.iter().for_each(|id| {
+                    if let Some(index) =
+                        self.tx_deduplication_check(permitted_past_time, arg_time, &arg.memo, *id)
+                    {
+                        tx_deduplication.insert(
+                            *id,
+                            TransferError::Duplicate {
+                                duplicate_of: index,
+                            },
+                        );
+                    }
+                }),
             }
         }
-        for id in arg.token_ids {
-            // self.tokens
-            //     .get(&id)
-            //     .unwrap()
-            //     .transfer(&auth, arg.to.clone())?;
-            let mut token = self.tokens.get(&id).unwrap();
-            token.transfer(&auth, arg.to.clone())?;
-        }
-        Ok(self.get_tx_id())
-    }
-
-    pub fn approve(&mut self, caller: &Principal, arg: ApprovalArgs) -> Result<u128, ApprovalError> {
-        let caller = Account {
-            owner: caller.clone(),
-            subaccount: arg.from_subaccount,
-        };
-        let user_tokens = self.tokens_of(&caller);
-        let tokens = match arg.tokenIds {
-            Some(ids) => {
-                let mut unauthorized = vec![];
-                for id in ids.iter() {
-                    if user_tokens.contains(id) {
-                        continue;
-                    } else {
-                        unauthorized.push(id.clone())
+        let mut unauthorized: Vec<u128> = vec![];
+        arg.token_ids.iter().for_each(|id| {
+            let token = match self.tokens.get(id) {
+                None => ic_cdk::trap("Invalid Id"),
+                Some(token) => token,
+            };
+            let approval_check = token.approval_check(current_time + get_permitted_drift(), &caller);
+            ic_cdk::println!("approval check :{}", approval_check);
+            if token.owner != caller
+                && !approval_check
+            {
+                ic_cdk::println!("pushed to unauthorized");
+                unauthorized.push(id.clone())
+            }
+        });
+        ic_cdk::println!("unauthorized: {:?}", unauthorized);
+        match arg.is_atomic {
+            // when atomic transfer is turned off
+            Some(false) => {
+                for id in arg.token_ids.iter() {
+                    if let Some(e) = tx_deduplication.get(id) {
+                        return Err(e.clone());
+                    }
+                    let mut token = self.tokens.get(id).unwrap();
+                    match token.transfer(current_time + get_permitted_drift(), &caller, to) {
+                        Err(_) => continue,
+                        Ok(_) => {
+                            let log = TransferLog {
+                                id: id.clone(),
+                                at: current_time,
+                                memo: arg.memo.clone(),
+                                from: caller,
+                                to,
+                            };
+                            self.tokens.insert(id.clone(), token);
+                            self.log_transfer_transaction(log);
+                        }
                     }
                 }
                 if unauthorized.len() > 0 {
-                    return Err(ApprovalError::Unauthorized {
-                        tokens_ids: unauthorized
+                    return Err(TransferError::Unauthorized {
+                        tokens_ids: unauthorized,
                     });
-                } else {
-                    ids
                 }
+                Ok(self.get_tx_id())
             }
-            None => user_tokens,
+            // default behaviour of atomic
+            _ => {
+                for (_, e) in tx_deduplication.iter() {
+                    return Err(e.clone());
+                }
+                if unauthorized.len() > 0 {
+                    ic_cdk::println!("unauthorized was full");
+                    return Err(TransferError::Unauthorized {
+                        tokens_ids: unauthorized,
+                    });
+                }
+                for id in arg.token_ids.iter() {
+                    let mut token = self.tokens.get(id).unwrap();
+                    token.transfer(current_time + get_permitted_drift(), &caller, to)?;
+                    let log = TransferLog {
+                        id: id.clone(),
+                        at: current_time,
+                        memo: arg.memo.clone(),
+                        from: caller,
+                        to,
+                    };
+                    self.tokens.insert(id.clone(), token);
+                    self.log_transfer_transaction(log)
+                }
+                Ok(self.get_tx_id())
+            }
+        }
+    }
+
+    pub fn approve(
+        &mut self,
+        caller: &Principal,
+        arg: ApprovalArgs,
+    ) -> Result<u128, ApprovalError> {
+        let caller = default_account(*caller);
+        let token_ids = match arg.tokenIds {
+            None => self.tokens_of(&caller),
+            Some(ids) => {
+                self.id_validity_check(&ids);
+                ids
+            }
         };
-        for id in tokens.iter() {
-            let approval = Approval {
-                account: Account::from_principal(&arg.to),
-                expires_at: arg.expires_at,
-            };
-            // self.tokens
-            //     .get(token)
-            //     .unwrap()
-            //     .approve(&caller, approval)
-            //     .map_err(|e| e)?;
+        if token_ids.len() == 0 {
+            ic_cdk::trap("No Tokens Available")
+        }
+        let approve_for = default_account(arg.to);
+        let approval = Approval {
+            account: approve_for,
+            expires_at: arg.expires_at,
+        };
+        for id in token_ids.iter() {
             let mut token = self.tokens.get(id).unwrap();
-            token.approve(&caller, approval)?;
-            self.tokens.insert(*id, token);
+            token.approve(&caller, approval.clone())?;
+            self.tokens.insert(id.clone(), token);
         }
         Ok(self.get_tx_id())
     }
 }
 
 thread_local! {
-    pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
-        RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
+pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
+    RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
     pub static COLLECTION: RefCell<Collection> = RefCell::default();
+    pub static TX_WINDOW: RefCell<u64> = RefCell::default();
+    pub static PERMITTED_DRIFT: RefCell<u64> = RefCell::default();
+}
+
+pub fn get_tx_window() -> u64 {
+    TX_WINDOW.with(|time| time.borrow().clone())
+}
+
+pub fn get_permitted_drift() -> u64 {
+    PERMITTED_DRIFT.with(|time| time.borrow().clone())
 }
