@@ -389,8 +389,8 @@ impl Collection {
         let current_time = ic_cdk::api::time();
         let mut tx_deduplication: HashMap<u128, TransferError> = HashMap::new();
         if let Some(arg_time) = arg.created_at_time {
-            let permitted_past_time = current_time - get_tx_window() - get_permitted_drift();
-            let permitted_future_time = current_time + get_permitted_drift();
+            let permitted_past_time = current_time - self.tx_window - self.permitted_drift;
+            let permitted_future_time = current_time + self.permitted_drift;
             if arg_time < permitted_past_time {
                 return Err(TransferError::TooOld);
             }
@@ -434,7 +434,7 @@ impl Collection {
                 Some(token) => token,
             };
             let approval_check =
-                token.approval_check(current_time + get_permitted_drift(), &caller);
+                token.approval_check(current_time + self.permitted_drift, &caller);
             if token.owner != caller && !approval_check {
                 unauthorized.push(id.clone())
             }
@@ -447,7 +447,7 @@ impl Collection {
                         return Err(e.clone());
                     }
                     let mut token = self.tokens.get(id).unwrap();
-                    match token.transfer(current_time + get_permitted_drift(), &caller, to) {
+                    match token.transfer(current_time + self.permitted_drift, &caller, to) {
                         Err(_) => continue,
                         Ok(_) => {
                             let log = TransferLog {
@@ -481,7 +481,7 @@ impl Collection {
                 }
                 for id in arg.token_ids.iter() {
                     let mut token = self.tokens.get(id).unwrap();
-                    token.transfer(current_time + get_permitted_drift(), &caller, to)?;
+                    token.transfer(current_time + self.permitted_drift, &caller, to)?;
                     let log = TransferLog {
                         id: id.clone(),
                         at: current_time,
@@ -535,10 +535,10 @@ pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
     // pub static PERMITTED_DRIFT: RefCell<u64> = RefCell::default();
 }
 
-pub fn get_tx_window() -> u64 {
-    COLLECTION.with(|c| c.borrow().tx_window.clone())
-}
+// pub fn get_tx_window() -> u64 {
+//     COLLECTION.with(|c| c.borrow().tx_window.clone())
+// }
 
-pub fn get_permitted_drift() -> u64 {
-    COLLECTION.with(|c| c.borrow().permitted_drift.clone())
-}
+// pub fn get_permitted_drift() -> u64 {
+//     COLLECTION.with(|c| c.borrow().permitted_drift.clone())
+// }

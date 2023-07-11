@@ -2,7 +2,7 @@ use ic_cdk_macros::query;
 use candid::candid_method;
 use icrc_ledger_types::{icrc1::account::Account, icrc::generic_metadata_value::MetadataValue};
 
-use crate::{state::COLLECTION, types::{CollectionMetadata, Standard}};
+use crate::{state::COLLECTION, types::{CollectionMetadata, Standard}, utils::account_transformer};
 
 #[query]
 #[candid_method(query)]
@@ -73,12 +73,14 @@ pub fn icrc7_owner_of(id: u128) -> Account{
 #[query]
 #[candid_method(query)]
 pub fn icrc7_balance_of(account: Account) -> u128{
+    let account = account_transformer(account);
     COLLECTION.with(|collection| collection.borrow().balance_of(&account))
 }
 
 #[query]
 #[candid_method(query)]
 pub fn icrc7_tokens_of(account: Account) -> Vec<u128>{
+    let account = account_transformer(account);
     COLLECTION.with(|collection| collection.borrow().tokens_of(&account))
 }
 
