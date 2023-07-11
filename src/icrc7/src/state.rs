@@ -82,19 +82,14 @@ impl Token {
         //     approval.account.owner == account.owner && approval.account.subaccount == account.subaccount
         //         && (approval.expires_at.is_none() || approval.expires_at >= Some(current_time))
         // })
-        ic_cdk::println!("{}", self.approvals.len());
         for approval in self.approvals.iter() {
-            ic_cdk::println!("approval.owner: {:?} == account.owner: {:?} && aproval.subaccount: {:?} == account.subaccount: {:?}", approval.account.owner, account.owner, approval.account.subaccount, account.subaccount);
-            // if approval.account.owner == account.owner && approval.account.subaccount == account.subaccount{
             if approval.account == *account {
-                ic_cdk::println!("was true");
                 if approval.expires_at.is_none() {
                     return true;
                 } else if approval.expires_at >= Some(current_time) {
                     return true;
                 }
             }
-            ic_cdk::println!("was false");
         }
         false
     }
@@ -109,9 +104,6 @@ impl Token {
             });
         } else {
             self.approvals.push(approval);
-            self.approvals.iter().for_each(|approval| {
-                ic_cdk::println!("{:?}", approval.account);
-            });
             Ok(())
         }
     }
@@ -196,7 +188,7 @@ pub struct Collection {
     pub tx_count: u128,
     // #[serde(skip, default = "init_transfer_stable_data")]
     // pub transfer_log: StableBTreeMap<u128, TransferLog, Memory>,
-    pub transfer_log: Vec<TransferLog>,
+    pub transfer_log: Vec<TransferLog>, // planning to replace Vector with StableBTreeMap
     pub tx_window: u64,
     pub permitted_drift: u64,
 }
@@ -270,7 +262,6 @@ impl Collection {
     }
 
     fn log_transfer_transaction(&mut self, log: TransferLog) {
-        ic_cdk::println!("timestamp: {}", log.at);
         self.transfer_log.push(log);
     }
 
@@ -289,7 +280,6 @@ impl Collection {
         self.total_supply += 1;
         self.tokens.insert(token.id.clone(), token);
         let id = self.get_tx_id();
-        ic_cdk::println!("mint tx: {}", id);
         id
     }
 
@@ -342,7 +332,6 @@ impl Collection {
         caller: &Account,
         to: &Account,
     ) -> Option<u128> {
-        ic_cdk::println!("transaction log count: {}", self.transfer_log.len());
         if let Some(index) = self
             .transfer_log
             .iter()
@@ -396,39 +385,20 @@ impl Collection {
         // checking if the token for respective ids is available or not
         self.id_validity_check(&arg.token_ids);
         let caller = default_account(caller.clone());
-        ic_cdk::println!("caller: {:}", caller);
         let to = account_transformer(arg.to);
         let current_time = ic_cdk::api::time();
         let mut tx_deduplication: HashMap<u128, TransferError> = HashMap::new();
         if let Some(arg_time) = arg.created_at_time {
             let permitted_past_time = current_time - get_tx_window() - get_permitted_drift();
-            ic_cdk::println!(
-                "current_time: {current_time} > permitted_past_time: {permitted_past_time}: {}",
-                current_time > permitted_past_time
-            );
             let permitted_future_time = current_time + get_permitted_drift();
-            ic_cdk::println!(
-                "checking arg_time: {} < permitted_past_time: {}",
-                arg_time,
-                permitted_past_time
-            );
             if arg_time < permitted_past_time {
-                ic_cdk::println!("too old, was true");
                 return Err(TransferError::TooOld);
             }
-            ic_cdk::println!("was false");
-            ic_cdk::println!(
-                "checking arg_time: {} > permitted_future_time: {}",
-                arg_time,
-                permitted_future_time
-            );
             if arg_time > permitted_future_time {
-                ic_cdk::println!("infuture, was true");
                 return Err(TransferError::CreatedInFuture {
                     ledger_time: current_time,
                 });
             }
-            ic_cdk::println!("was false");
             //     match (
             //         permitted_past_time > arg_time,
             //         arg_time < permitted_future_time,
@@ -448,7 +418,6 @@ impl Collection {
                 if let Some(index) =
                     self.tx_deduplication_check(permitted_past_time, arg_time, &arg.memo, *id, &caller, &to)
                 {
-                    ic_cdk::println!("tx deduplication recorded");
                     tx_deduplication.insert(
                         *id,
                         TransferError::Duplicate {
@@ -466,13 +435,10 @@ impl Collection {
             };
             let approval_check =
                 token.approval_check(current_time + get_permitted_drift(), &caller);
-            ic_cdk::println!("approval check :{}", approval_check);
             if token.owner != caller && !approval_check {
-                ic_cdk::println!("pushed to unauthorized");
                 unauthorized.push(id.clone())
             }
         });
-        ic_cdk::println!("unauthorized: {:?}", unauthorized);
         match arg.is_atomic {
             // when atomic transfer is turned off
             Some(false) => {
@@ -509,7 +475,6 @@ impl Collection {
                     return Err(e.clone());
                 }
                 if unauthorized.len() > 0 {
-                    ic_cdk::println!("unauthorized was full");
                     return Err(TransferError::Unauthorized {
                         tokens_ids: unauthorized,
                     });
