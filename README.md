@@ -27,10 +27,12 @@ export MINTING_AUTHORITY=$(dfx identity get-principal)
 
 # Deploys your canisters to the replica and generates your candid interface
 dfx deploy icrc7 --argument '(record {
+  tx_window=24;
+  permitted_drift=2;
   name="Icrc7 Token";
   symbol="ICRC7";
   minting_authority=opt principal"'${MINTING_AUTHORITY}'";
-  royalties=null;    
+  royalties=null;
   royalties_recipient=null;    
   description=opt "ICRC7 Standard Token";
   image=null;    

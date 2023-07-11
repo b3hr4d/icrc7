@@ -1,6 +1,7 @@
 use ic_cdk_macros::{init, pre_upgrade, post_upgrade};
-use candid::candid_method;
+use candid::{candid_method, CandidType};
 use ic_stable_structures::{writer::Writer, Memory};
+use serde_derive::Deserialize;
 
 use crate::{types::InitArg, state::{COLLECTION, Collection}};
 
@@ -24,10 +25,20 @@ pub fn init(
             description: arg.description,
             image: arg.image,
             supply_cap: arg.supply_cap,
+            tx_window: arg.tx_window as u64 * 60 * 60 * 60 * 1000_000_000,
+            permitted_drift: arg.permitted_drift as u64 * 60 * 60 * 1000_000_000,
             ..Default::default()
         };
         *c = collection;
-    })
+    });
+    // TX_WINDOW.with(|window|{
+    //     let time = arg.tx_window as u64 * 60 * 60 * 60 * 1000_000_000;
+    //     *window.borrow_mut() = time;
+    // });
+    // PERMITTED_DRIFT.with(|drift|{
+    //     let time = arg.permitted_drift as u64 * 60 * 60 * 1000_000_000;
+    //     *drift.borrow_mut() = time;
+    // });
 }
 
 // A pre-upgrade hook for serializing the data stored on the heap.
@@ -45,7 +56,13 @@ fn pre_upgrade() {
     let mut memory = crate::memory::get_upgrades_memory();
     let mut writer = Writer::new(&mut memory, 0);
     writer.write(&len.to_le_bytes()).unwrap();
-    writer.write(&state_bytes).unwrap()
+    writer.write(&state_bytes).unwrap();
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct Time{
+    pub tx_window: u64,
+    pub permitted_drift: u64,
 }
 
 // A post-upgrade hook for deserializing the data back into the heap.

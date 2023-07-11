@@ -128,11 +128,11 @@ impl Token {
         if self.owner != *caller && !self.approval_check(permitted_time, caller) {
             return Err(TransferError::Unauthorized {
                 tokens_ids: vec![self.id],
-            })
+            });
         } else {
             self.owner = to;
             self.approvals.clear();
-            return Ok(())
+            return Ok(());
         }
     }
 }
@@ -197,6 +197,8 @@ pub struct Collection {
     // #[serde(skip, default = "init_transfer_stable_data")]
     // pub transfer_log: StableBTreeMap<u128, TransferLog, Memory>,
     pub transfer_log: Vec<TransferLog>,
+    pub tx_window: u64,
+    pub permitted_drift: u64,
 }
 
 impl Default for Collection {
@@ -215,6 +217,8 @@ impl Default for Collection {
             // transfer_log: init_transfer_stable_data(),
             transfer_log: Vec::new(),
             tx_count: 0,
+            tx_window: 0,
+            permitted_drift: 0,
         }
     }
 }
@@ -266,6 +270,7 @@ impl Collection {
     }
 
     fn log_transfer_transaction(&mut self, log: TransferLog) {
+        ic_cdk::println!("timestamp: {}", log.at);
         self.transfer_log.push(log);
     }
 
@@ -334,27 +339,36 @@ impl Collection {
         created_at_time: u64,
         memo: &Option<Vec<u8>>,
         id: u128,
+        caller: &Account,
+        to: &Account,
     ) -> Option<u128> {
+        ic_cdk::println!("transaction log count: {}", self.transfer_log.len());
         if let Some(index) = self
             .transfer_log
             .iter()
             .rev() // reversing
             .position(|log| {
-                match log.id == id && log.at < permitted_past_time && log.at == created_at_time {
-                    false => false,
-                    true => {
-                        if log.memo != *memo {
-                            return false;
-                        }
-                        true
-                    }
-                }
+                log.at > permitted_past_time
+                    && log.id == id
+                    && log.at == created_at_time
+                    && log.memo == *memo
+                    && log.from == *caller
+                    && log.to == *to
             })
         {
+            let index = self.transfer_log.len() - 1 - index;
             Some(index as u128)
         } else {
             None
         }
+        // for (index, log) in self.transfer_log.iter().rev().enumerate(){
+        //     if log.at 
+        //     if log.id == id{
+                
+        //     }
+        //     continue;
+        // }
+        // None
     }
 
     fn id_validity_check(&self, ids: &Vec<u128>) {
@@ -387,33 +401,62 @@ impl Collection {
         let current_time = ic_cdk::api::time();
         let mut tx_deduplication: HashMap<u128, TransferError> = HashMap::new();
         if let Some(arg_time) = arg.created_at_time {
-            let permitted_past_time = current_time - get_tx_window() + get_permitted_drift();
+            let permitted_past_time = current_time - get_tx_window() - get_permitted_drift();
+            ic_cdk::println!(
+                "current_time: {current_time} > permitted_past_time: {permitted_past_time}: {}",
+                current_time > permitted_past_time
+            );
             let permitted_future_time = current_time + get_permitted_drift();
-            match (
-                arg_time > permitted_past_time,
-                arg_time < permitted_future_time,
-            ) {
-                // checking if time is before permitted_past_time
-                (false, _) => return Err(TransferError::TooOld),
-                // checking if time is ahead of permitted_future_time
-                (_, false) => {
-                    return Err(TransferError::CreatedInFuture {
-                        ledger_time: current_time,
-                    })
-                }
-                (true, true) => arg.token_ids.iter().for_each(|id| {
-                    if let Some(index) =
-                        self.tx_deduplication_check(permitted_past_time, arg_time, &arg.memo, *id)
-                    {
-                        tx_deduplication.insert(
-                            *id,
-                            TransferError::Duplicate {
-                                duplicate_of: index,
-                            },
-                        );
-                    }
-                }),
+            ic_cdk::println!(
+                "checking arg_time: {} < permitted_past_time: {}",
+                arg_time,
+                permitted_past_time
+            );
+            if arg_time < permitted_past_time {
+                ic_cdk::println!("too old, was true");
+                return Err(TransferError::TooOld);
             }
+            ic_cdk::println!("was false");
+            ic_cdk::println!(
+                "checking arg_time: {} > permitted_future_time: {}",
+                arg_time,
+                permitted_future_time
+            );
+            if arg_time > permitted_future_time {
+                ic_cdk::println!("infuture, was true");
+                return Err(TransferError::CreatedInFuture {
+                    ledger_time: current_time,
+                });
+            }
+            ic_cdk::println!("was false");
+            //     match (
+            //         permitted_past_time > arg_time,
+            //         arg_time < permitted_future_time,
+            //     ) {
+            //         // checking if time is before permitted_past_time
+            //         (false, _) => return Err(TransferError::TooOld),
+            //         // checking if time is ahead of permitted_future_time
+            //         (_, false) => {
+            //             return Err(TransferError::CreatedInFuture {
+            //                 ledger_time: current_time,
+            //             })
+            //         }
+            //         (true, true) => ,
+            //     }
+            // }
+            arg.token_ids.iter().for_each(|id| {
+                if let Some(index) =
+                    self.tx_deduplication_check(permitted_past_time, arg_time, &arg.memo, *id, &caller, &to)
+                {
+                    ic_cdk::println!("tx deduplication recorded");
+                    tx_deduplication.insert(
+                        *id,
+                        TransferError::Duplicate {
+                            duplicate_of: index,
+                        },
+                    );
+                }
+            });
         }
         let mut unauthorized: Vec<u128> = vec![];
         arg.token_ids.iter().for_each(|id| {
@@ -421,11 +464,10 @@ impl Collection {
                 None => ic_cdk::trap("Invalid Id"),
                 Some(token) => token,
             };
-            let approval_check = token.approval_check(current_time + get_permitted_drift(), &caller);
+            let approval_check =
+                token.approval_check(current_time + get_permitted_drift(), &caller);
             ic_cdk::println!("approval check :{}", approval_check);
-            if token.owner != caller
-                && !approval_check
-            {
+            if token.owner != caller && !approval_check {
                 ic_cdk::println!("pushed to unauthorized");
                 unauthorized.push(id.clone())
             }
@@ -524,14 +566,14 @@ thread_local! {
 pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
     RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
     pub static COLLECTION: RefCell<Collection> = RefCell::default();
-    pub static TX_WINDOW: RefCell<u64> = RefCell::default();
-    pub static PERMITTED_DRIFT: RefCell<u64> = RefCell::default();
+    // pub static TX_WINDOW: RefCell<u64> = RefCell::default();
+    // pub static PERMITTED_DRIFT: RefCell<u64> = RefCell::default();
 }
 
 pub fn get_tx_window() -> u64 {
-    TX_WINDOW.with(|time| time.borrow().clone())
+    COLLECTION.with(|c| c.borrow().tx_window.clone())
 }
 
 pub fn get_permitted_drift() -> u64 {
-    PERMITTED_DRIFT.with(|time| time.borrow().clone())
+    COLLECTION.with(|c| c.borrow().permitted_drift.clone())
 }

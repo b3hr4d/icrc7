@@ -6,6 +6,8 @@ use serde_derive::Deserialize;
 
 #[derive(CandidType, Deserialize)]
 pub struct InitArg{
+    pub tx_window: u16, // input should be in hours format
+    pub permitted_drift: u16, // input should be in minutes format
     pub name: String,
     pub symbol: String,
     pub minting_authority: Option<Principal>,

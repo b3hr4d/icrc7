@@ -25,6 +25,8 @@ type CollectionMetadata = record {
 };
 type InitArg = record {
   supply_cap : opt nat;
+  tx_window : nat16;
+  permitted_drift : nat16;
   name : text;
   description : opt text;
   minting_authority : opt principal;
