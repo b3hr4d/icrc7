@@ -5,7 +5,7 @@
 - [x] Pre and Post upgrading
 
 <strong>Remaining/</strong>
-- [ ] Transaction Deduplication
+- [x] Transaction Deduplication
 - [ ] Chunk Upload for larger images
 - [ ] Transaction Log with filters
 - [ ] HTTP Handling
