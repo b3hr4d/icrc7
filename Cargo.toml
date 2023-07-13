@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "src/icrc7",
-    "src/factory"
+    "src/factory",
+    "src/icrc7_tests",
 ]

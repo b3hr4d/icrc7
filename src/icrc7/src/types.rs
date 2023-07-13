@@ -14,7 +14,7 @@ pub struct InitArg{
     pub royalties: Option<u16>,
     pub royalties_recipient: Option<Account>,
     pub description: Option<String>,
-    pub image: Option<Vec<u8>>,
+    pub image: Option<String>,
     pub supply_cap: Option<u128>,
 }
 
@@ -25,7 +25,7 @@ pub struct CollectionMetadata {
     pub icrc7_royalties: Option<u16>,
     pub icrc7_royalty_recipient: Option<Account>,
     pub icrc7_description: Option<String>,
-    pub icrc7_image: Option<Vec<u8>>, // TBD
+    pub icrc7_image: Option<String>,
     pub icrc7_total_supply: u128,
     pub icrc7_supply_cap: Option<u128>,
 }

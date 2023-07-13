@@ -179,7 +179,7 @@ pub struct Collection {
     pub minting_authority: Principal,
     pub royalty_recipient: Option<Account>,
     pub description: Option<String>,
-    pub image: Option<Vec<u8>>,
+    pub image: Option<String>,
     pub total_supply: u128,
     // max supply cap
     pub supply_cap: Option<u128>,
@@ -236,7 +236,7 @@ impl Collection {
         self.description.clone()
     }
 
-    pub fn image(&self) -> Option<Vec<u8>> {
+    pub fn image(&self) -> Option<String> {
         self.image.clone()
     }
 

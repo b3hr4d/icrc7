@@ -36,7 +36,7 @@ pub fn icrc7_description() -> Option<String>{
 
 #[query]
 #[candid_method(query)]
-pub fn icrc7_image() -> Option<Vec<u8>>{
+pub fn icrc7_image() -> Option<String>{
     COLLECTION.with(|c| c.borrow().image())
 }
 
