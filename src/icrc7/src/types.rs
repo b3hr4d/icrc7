@@ -38,7 +38,8 @@ pub struct Standard{
 
 #[derive(CandidType, Deserialize)]
 pub struct TransferArgs{
-    pub from: Option<Account>,
+    pub spender_subaccount: Option<Subaccount>,
+    pub from: Account,
     pub to: Account,
     pub token_ids: Vec<u128>,
     pub memo: Option<Vec<u8>>,
@@ -49,11 +50,11 @@ pub struct TransferArgs{
 #[derive(CandidType, Deserialize)]
 pub struct ApprovalArgs{
     pub from_subaccount: Option<Subaccount>,
-    pub to: Principal,
-    pub tokenIds: Option<Vec<u128>>,
+    pub spender: Account,
+    pub token_ids: Option<Vec<u128>>,
     pub expires_at: Option<u64>,
     pub memo: Option<Vec<u8>>,
-    pub created_at: Option<u64>,
+    pub created_at_time: Option<u64>,
 }
 
 #[derive(CandidType, Deserialize)]

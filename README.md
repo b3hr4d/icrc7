@@ -6,9 +6,9 @@
 ## Features
 - [x] Stable Memory
 - [x] Pre and Post upgrading
+- [x] Transaction Deduplication
 
 <strong>Remaining/</strong>
-- [x] Transaction Deduplication
 - [ ] Chunk Upload for larger images
 - [ ] Transaction Log with filters
 - [ ] HTTP Handling

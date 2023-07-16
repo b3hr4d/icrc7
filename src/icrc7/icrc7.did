@@ -1,11 +1,11 @@
 type Account = record { owner : principal; subaccount : opt vec nat8 };
 type ApprovalArgs = record {
-  to : principal;
-  tokenIds : opt vec nat;
   memo : opt vec nat8;
-  created_at : opt nat64;
   from_subaccount : opt vec nat8;
+  token_ids : opt vec nat;
+  created_at_time : opt nat64;
   expires_at : opt nat64;
+  spender : Account;
 };
 type ApprovalError = variant {
   GenericError : record { msg : text; error_code : nat };
@@ -53,7 +53,8 @@ type Result_1 = variant { Ok : nat; Err : TransferError };
 type Standard = record { url : text; name : text };
 type TransferArgs = record {
   to : Account;
-  from : opt Account;
+  spender_subaccount : opt vec nat8;
+  from : Account;
   memo : opt vec nat8;
   is_atomic : opt bool;
   token_ids : vec nat;

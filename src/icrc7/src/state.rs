@@ -384,7 +384,7 @@ impl Collection {
         }
         // checking if the token for respective ids is available or not
         self.id_validity_check(&arg.token_ids);
-        let caller = default_account(caller.clone());
+        let caller = account_transformer(Account { owner: caller.clone(), subaccount: arg.spender_subaccount });
         let to = account_transformer(arg.to);
         let current_time = ic_cdk::api::time();
         let mut tx_deduplication: HashMap<u128, TransferError> = HashMap::new();
@@ -503,7 +503,7 @@ impl Collection {
         arg: ApprovalArgs,
     ) -> Result<u128, ApprovalError> {
         let caller = default_account(*caller);
-        let token_ids = match arg.tokenIds {
+        let token_ids = match arg.token_ids {
             None => self.tokens_of(&caller),
             Some(ids) => {
                 self.id_validity_check(&ids);
@@ -513,7 +513,7 @@ impl Collection {
         if token_ids.len() == 0 {
             ic_cdk::trap("No Tokens Available")
         }
-        let approve_for = default_account(arg.to);
+        let approve_for = account_transformer(arg.spender);
         let approval = Approval {
             account: approve_for,
             expires_at: arg.expires_at,
