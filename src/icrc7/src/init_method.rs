@@ -1,7 +1,6 @@
 use ic_cdk_macros::{init, pre_upgrade, post_upgrade};
-use candid::{candid_method, CandidType};
+use candid::candid_method;
 use ic_stable_structures::{writer::Writer, Memory};
-use serde_derive::Deserialize;
 
 use crate::{types::InitArg, state::{COLLECTION, Collection}};
 
@@ -57,12 +56,6 @@ fn pre_upgrade() {
     let mut writer = Writer::new(&mut memory, 0);
     writer.write(&len.to_le_bytes()).unwrap();
     writer.write(&state_bytes).unwrap();
-}
-
-#[derive(CandidType, Deserialize)]
-pub struct Time{
-    pub tx_window: u64,
-    pub permitted_drift: u64,
 }
 
 // A post-upgrade hook for deserializing the data back into the heap.

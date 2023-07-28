@@ -17,9 +17,3 @@ pub enum ApprovalError{
     TemporaryUnavailable,
     GenericError{ error_code: u128, msg: String },
 }
-
-// #[derive(CandidType)]
-// pub enum MintError{
-//     SupplyCapReached,
-//     Unauthorized{ minting_authority: Principal },
-// }
