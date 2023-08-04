@@ -54,28 +54,6 @@ dfx canister call icrc7 icrc7_mint '(record{
   };
 })'
 
-# Approves token
-dfx canister call icrc7 icrc7_approve '(record{
-  from=null;
-  to=principal"2vxsx-fae";
-  tokenIds=null;
-  expires_at=null;
-  memo=null;
-  created_at=null;
-})'
-
-# Transfers token
-dfx canister call icrc7 icrc7_transfer '(record{
-  from=null;
-  to=record{
-  owner=principal"r4bei-hre5h-74jey-tf5fd-j7pnu-tko5a-n6f6p-rpcgq-p7eov-q6gyk-vae";
-  subaccount=null;
-  };
-  memo=null;
-  created_at_time=null;
-  is_atomic=null;token_ids=vec{100}; 
-})'
-
 # Returns owner of
 dfx canister call icrc7_owner_of '(100)'
 ```
