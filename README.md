@@ -55,5 +55,5 @@ dfx canister call icrc7 icrc7_mint '(record{
 })'
 
 # Returns owner of
-dfx canister call icrc7_owner_of '(100)'
+dfx canister call icrc7 icrc7_owner_of '(100)'
 ```
