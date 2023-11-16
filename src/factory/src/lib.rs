@@ -1,21 +1,25 @@
-use candid::{candid_method, export_service, CandidType, Deserialize, Encode, Nat, Principal};
-use ic_cdk::api::management_canister::main::{
-    CanisterIdRecord, CanisterInstallMode, CanisterSettings, CreateCanisterArgument,
-    InstallCodeArgument,
+use b3_utils::ledger::ICRCAccount;
+use candid::{CandidType, Deserialize, Encode, Nat, Principal};
+use ic_cdk::{
+    api::management_canister::main::{
+        CanisterIdRecord, CanisterInstallMode, CanisterSettings, CreateCanisterArgument,
+        InstallCodeArgument,
+    },
+    update,
 };
-use ic_cdk_macros::*;
-use icrc_ledger_types::icrc1::account::Account;
 
-#[derive(CandidType)]
-pub struct InitArg {
+#[derive(CandidType, Deserialize)]
+pub struct Config {
     pub name: String,
     pub symbol: String,
-    pub minting_authority: Option<Principal>,
     pub royalties: Option<u16>,
-    pub royalties_recipient: Option<Account>,
+    pub minting_authority: Principal,
+    pub royalty_recipient: Option<ICRCAccount>,
     pub description: Option<String>,
-    pub image: Option<Vec<u8>>,
+    pub logo: Option<String>,
     pub supply_cap: Option<u128>,
+    pub tx_window: u64,
+    pub permitted_drift: u64,
 }
 
 #[derive(CandidType, Deserialize)]
@@ -23,23 +27,25 @@ pub struct CreateArg {
     pub name: String,
     pub symbol: String,
     pub royalties: Option<u16>,
-    pub royalties_recipient: Option<Account>,
+    pub royalties_recipient: Option<ICRCAccount>,
     pub description: Option<String>,
-    pub image: Option<Vec<u8>>,
+    pub logo: Option<String>,
     pub supply_cap: Option<u128>,
 }
 
-impl From<(Principal, CreateArg)> for InitArg {
+impl From<(Principal, CreateArg)> for Config {
     fn from((minting_authority, arg): (Principal, CreateArg)) -> Self {
-        InitArg {
+        Config {
             name: arg.name,
             symbol: arg.symbol,
-            minting_authority: Some(minting_authority),
+            minting_authority,
             royalties: arg.royalties,
-            royalties_recipient: arg.royalties_recipient,
+            royalty_recipient: arg.royalties_recipient,
             description: arg.description,
-            image: arg.image,
+            logo: arg.logo,
             supply_cap: arg.supply_cap,
+            tx_window: 0,
+            permitted_drift: 0,
         }
     }
 }
@@ -98,10 +104,9 @@ pub async fn install_wasm(wasm: Vec<u8>, canister_id: Principal, args: Vec<u8>) 
 }
 
 #[update]
-#[candid_method(update)]
 pub async fn create_icrc7_collection(arg: CreateArg) -> Principal {
     let caller = ic_cdk::caller();
-    let arg = InitArg::from((caller, arg));
+    let arg = Config::from((caller, arg));
     let address = get_an_address(&caller).await;
     if address == Principal::anonymous() {
         ic_cdk::trap("Failed to get an address")
@@ -113,23 +118,4 @@ pub async fn create_icrc7_collection(arg: CreateArg) -> Principal {
     }
 }
 
-#[query(name = "__get_candid_interface_tmp_hack")]
-fn export_candid() -> String {
-    export_service!();
-    __export_service()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn save_candid() {
-        use std::env;
-        use std::fs::write;
-        use std::path::PathBuf;
-
-        let dir = PathBuf::from(env::current_dir().unwrap());
-        write(dir.join("service.did"), export_candid()).expect("Write failed.");
-    }
-}
+ic_cdk::export_candid!();

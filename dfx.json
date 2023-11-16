@@ -2,9 +2,9 @@
   "version": 1,
   "canisters": {
     "icrc7": {
-      "type": "custom",
+      "type": "rust",
       "candid": "src/icrc7/icrc7.did",
-      "wasm": "target/wasm32-unknown-unknown/release/icrc7.wasm"
+      "package": "icrc7"
     },
     "factory": {
       "type": "custom",

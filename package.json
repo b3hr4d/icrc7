@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
+    "dfx:build": "sh ./predeploy.sh && dfx build",
+    "predeploy": "sh ./predeploy.sh",
+    "deploy": "dfx deploy",
     "test": "bash ./scripts/test.sh"
   },
   "dependencies": {

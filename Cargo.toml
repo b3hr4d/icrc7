@@ -1,6 +1,2 @@
 [workspace]
-members = [
-    "src/icrc7",
-    "src/factory",
-    "src/icrc7_tests",
-]
+members = ["src/icrc7", "src/factory"]
