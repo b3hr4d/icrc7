@@ -4,12 +4,12 @@
     "icrc7": {
       "type": "custom",
       "candid": "src/icrc7/icrc7.did",
-      "wasm": "target/wasm32-unknown-unknown/release/icrc7.wasm.gz"
+      "wasm": "target/wasm32-unknown-unknown/release/icrc7.wasm"
     },
     "factory": {
       "type": "custom",
       "candid": "src/factory/service.did",
-      "wasm": "target/wasm32-unknown-unknown/release/factory.wasm.gz"
+      "wasm": "target/wasm32-unknown-unknown/release/factory.wasm"
     }
   },
   "defaults": {

@@ -351,9 +351,9 @@ impl Collection {
             None
         }
         // for (index, log) in self.transfer_log.iter().rev().enumerate(){
-        //     if log.at 
+        //     if log.at
         //     if log.id == id{
-                
+
         //     }
         //     continue;
         // }
@@ -384,7 +384,10 @@ impl Collection {
         }
         // checking if the token for respective ids is available or not
         self.id_validity_check(&arg.token_ids);
-        let caller = account_transformer(Account { owner: caller.clone(), subaccount: arg.spender_subaccount });
+        let caller = account_transformer(Account {
+            owner: caller.clone(),
+            subaccount: arg.spender_subaccount,
+        });
         let to = account_transformer(arg.to);
         let current_time = ic_cdk::api::time();
         let mut tx_deduplication: HashMap<u128, TransferError> = HashMap::new();
@@ -415,9 +418,14 @@ impl Collection {
             //     }
             // }
             arg.token_ids.iter().for_each(|id| {
-                if let Some(index) =
-                    self.tx_deduplication_check(permitted_past_time, arg_time, &arg.memo, *id, &caller, &to)
-                {
+                if let Some(index) = self.tx_deduplication_check(
+                    permitted_past_time,
+                    arg_time,
+                    &arg.memo,
+                    *id,
+                    &caller,
+                    &to,
+                ) {
                     tx_deduplication.insert(
                         *id,
                         TransferError::Duplicate {
@@ -433,8 +441,7 @@ impl Collection {
                 None => ic_cdk::trap("Invalid Id"),
                 Some(token) => token,
             };
-            let approval_check =
-                token.approval_check(current_time + self.permitted_drift, &caller);
+            let approval_check = token.approval_check(current_time + self.permitted_drift, &caller);
             if token.owner != caller && !approval_check {
                 unauthorized.push(id.clone())
             }
