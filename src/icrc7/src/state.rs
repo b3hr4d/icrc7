@@ -1,5 +1,7 @@
-use std::{cell::RefCell, collections::HashMap};
-
+use crate::{
+    errors::{ApprovalError, TransferError},
+    types::{ApprovalArgs, CollectionMetadata, TransferArgs},
+};
 use b3_utils::{
     ledger::{ICRC1MetadataValue, ICRCAccount},
     memory::{
@@ -10,14 +12,10 @@ use b3_utils::{
 use candid::{CandidType, Decode, Encode, Nat, Principal};
 use serde_bytes::ByteBuf;
 use serde_derive::{Deserialize, Serialize};
-
-use crate::{
-    errors::{ApprovalError, TransferError},
-    types::{ApprovalArgs, CollectionMetadata, TransferArgs},
-};
+use std::{cell::RefCell, collections::HashMap};
 
 thread_local! {
-    pub static CONFIG: RefCell<DefaultStableCell<Config>> = init_stable_mem_refcell("config", 1).unwrap();
+    pub static CONFIG: RefCell<DefaultStableCell<CollectionConfig>> = init_stable_mem_refcell("config", 1).unwrap();
     pub static TOKENS: RefCell<DefaultStableBTreeMap<u128, Token>> = init_stable_mem_refcell("tokens", 2).unwrap();
     pub static TRANSFER_LOG: RefCell<DefaultStableVec<TransferLog>> = init_stable_mem_refcell("transfer_log", 3).unwrap();
     pub static TRANSACTION_ID: RefCell<DefaultStableCell<u128>> = init_stable_mem_refcell("transaction_id", 4).unwrap();
@@ -113,11 +111,6 @@ impl Token {
     }
 
     pub fn approval_check(&self, current_time: u64, account: &ICRCAccount) -> bool {
-        // self.approvals.iter().any(|approval| {
-        //     ic_cdk::println!("owner: {:?} == {:?} && subaccount {:?} == {:?}", approval.account.owner, account.owner, approval.account.subaccount, account.subaccount);
-        //     approval.account.owner == account.owner && approval.account.subaccount == account.subaccount
-        //         && (approval.expires_at.is_none() || approval.expires_at >= Some(current_time))
-        // })
         for approval in self.approvals.iter() {
             if approval.account == *account {
                 if approval.expires_at.is_none() {
@@ -209,7 +202,7 @@ impl Storable for TransferLog {
 }
 
 #[derive(CandidType, Serialize, Deserialize)]
-pub struct Config {
+pub struct CollectionConfig {
     pub name: String,
     pub symbol: String,
     pub royalties: Option<u16>,
@@ -222,7 +215,7 @@ pub struct Config {
     pub permitted_drift: u64,
 }
 
-impl Storable for Config {
+impl Storable for CollectionConfig {
     const BOUND: Bound = Bound::Unbounded;
 
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
@@ -234,7 +227,7 @@ impl Storable for Config {
     }
 }
 
-impl Default for Config {
+impl Default for CollectionConfig {
     fn default() -> Self {
         Self {
             name: String::new(),
@@ -251,7 +244,7 @@ impl Default for Config {
     }
 }
 
-impl Config {
+impl CollectionConfig {
     pub fn name(&self) -> String {
         self.name.clone()
     }

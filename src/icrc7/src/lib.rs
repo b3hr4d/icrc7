@@ -6,7 +6,7 @@ use crate::types::{CollectionMetadata, Standard};
 use crate::{
     errors::{ApprovalError, TransferError},
     state::Token,
-    state::{Config, CONFIG},
+    state::{CollectionConfig, CONFIG},
     types::{ApprovalArgs, MintArgs, TransferArgs},
 };
 use b3_utils::ledger::{ICRC1MetadataValue, ICRCAccount};
@@ -14,7 +14,7 @@ use ic_cdk::{init, query, update};
 use state::TOTAL_SUPPLY;
 
 #[init]
-pub fn init(arg: Config) {
+pub fn init(arg: CollectionConfig) {
     CONFIG.with(|c| {
         let mut c = c.borrow_mut();
 
