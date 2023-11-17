@@ -12,6 +12,18 @@ type ApprovalError = variant {
   Unauthorized : record { tokens_ids : vec nat };
   TooOld;
 };
+type CollectionConfig = record {
+  supply_cap : opt nat;
+  tx_window : nat64;
+  permitted_drift : nat64;
+  name : text;
+  description : opt text;
+  minting_authority : principal;
+  royalties : opt nat16;
+  royalty_recipient : opt ICRCAccount;
+  image : opt text;
+  symbol : text;
+};
 type CollectionMetadata = record {
   icrc7_supply_cap : opt nat;
   icrc7_description : opt text;
@@ -21,18 +33,6 @@ type CollectionMetadata = record {
   icrc7_symbol : text;
   icrc7_image : opt text;
   icrc7_name : text;
-};
-type Config = record {
-  supply_cap : opt nat;
-  tx_window : nat64;
-  logo : opt text;
-  permitted_drift : nat64;
-  name : text;
-  description : opt text;
-  minting_authority : principal;
-  royalties : opt nat16;
-  royalty_recipient : opt ICRCAccount;
-  symbol : text;
 };
 type ICRC1MetadataValue = variant {
   Int : int;
@@ -68,7 +68,7 @@ type TransferError = variant {
   CreatedInFuture : record { ledger_time : nat64 };
   TooOld;
 };
-service : (Config) -> {
+service : (CollectionConfig) -> {
   icrc7_approve : (ApprovalArgs) -> (Result);
   icrc7_balance_of : (ICRCAccount) -> (nat) query;
   icrc7_collection_metadata : () -> (CollectionMetadata) query;
