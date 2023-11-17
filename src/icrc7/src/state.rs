@@ -247,12 +247,12 @@ impl Storable for TransferLog {
     }
 }
 
-pub fn increment_tx_id() {
+pub fn increment_tx_id() -> u128 {
     TRANSACTION_ID.with(|id| {
         let mut id = id.borrow_mut();
         let current_id = id.get().clone();
 
-        id.set(current_id + 1).unwrap();
+        id.set(current_id + 1).unwrap()
     })
 }
 
@@ -262,10 +262,6 @@ pub fn increment_total_supply() {
         let current_supply = s.get().clone();
         s.set(current_supply + 1).unwrap();
     })
-}
-
-pub fn get_tx_id() -> u128 {
-    TRANSACTION_ID.with(|id| id.borrow().get().clone())
 }
 
 pub fn get_total_supply() -> u128 {

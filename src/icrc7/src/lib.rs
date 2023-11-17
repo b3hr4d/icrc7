@@ -9,10 +9,12 @@ use crate::{
     state::{CollectionConfig, CONFIG},
     types::{ApprovalArgs, MintArgs, TransferArgs},
 };
+use b3_utils::http::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use b3_utils::ledger::{ICRC1MetadataValue, ICRCAccount};
+use b3_utils::memory::with_stable_mem;
 use ic_cdk::{init, query, update};
 use state::{
-    get_total_supply, get_tx_id, id_validity_check, increment_total_supply, increment_tx_id,
+    get_total_supply, id_validity_check, increment_total_supply, increment_tx_id,
     tx_deduplication_check, Approval, TransferLog, TOKENS, TOTAL_SUPPLY, TRANSFER_LOG,
 };
 use std::collections::HashMap;
@@ -130,7 +132,7 @@ pub fn icrc7_supported_standards() -> Vec<Standard> {
     }]
 }
 
-// ======== Update ========
+/// ======== Update ========
 
 #[update]
 pub fn icrc7_transfer(arg: TransferArgs) -> Result<u128, TransferError> {
@@ -230,9 +232,7 @@ pub fn icrc7_transfer(arg: TransferArgs) -> Result<u128, TransferError> {
                     });
                 }
 
-                increment_tx_id();
-
-                Ok(get_tx_id())
+                Ok(increment_tx_id())
             }
             // default behaviour of atomic
             _ => {
@@ -263,9 +263,7 @@ pub fn icrc7_transfer(arg: TransferArgs) -> Result<u128, TransferError> {
                     TRANSFER_LOG.with(|log_ref| log_ref.borrow_mut().push(&log).unwrap());
                 }
 
-                increment_tx_id();
-
-                Ok(get_tx_id())
+                Ok(increment_tx_id())
             }
         }
     })
@@ -299,9 +297,7 @@ pub fn icrc7_approve(arg: ApprovalArgs) -> Result<u128, ApprovalError> {
             tokens.borrow_mut().insert(id.clone(), token);
         }
 
-        increment_tx_id();
-
-        Ok(get_tx_id())
+        Ok(increment_tx_id())
     })
 }
 
@@ -338,10 +334,55 @@ pub fn icrc7_mint(arg: MintArgs) -> u128 {
 
         TOKENS.with(|tokens| tokens.borrow_mut().insert(token.id, token));
 
-        increment_tx_id();
-
-        get_tx_id()
+        increment_tx_id()
     })
+}
+
+#[query]
+fn http_request(req: HttpRequest) -> HttpResponse {
+    match req.path() {
+        "/token" => {
+            let token_id = req.raw_query_param("id").unwrap();
+
+            let token = TOKENS.with(|tokens| {
+                let tokens = tokens.borrow();
+                match tokens.get(&token_id.parse::<u128>().unwrap_or_default()) {
+                    None => ic_cdk::trap("Invalid Token Id"),
+                    Some(token) => token,
+                }
+            });
+
+            HttpResponseBuilder::ok()
+                .header("Content-Type", "application/json; charset=utf-8")
+                .with_body_and_content_length(serde_json::to_string(&token).unwrap_or_default())
+                .build()
+        }
+        "/partition_details" => {
+            let list = with_stable_mem(|pm| pm.partition_details());
+
+            HttpResponseBuilder::ok()
+                .header("Content-Type", "application/json; charset=utf-8")
+                .with_body_and_content_length(serde_json::to_string(&list).unwrap_or_default())
+                .build()
+        }
+        "/transfer_log" => {
+            let transfer_id = req.raw_query_param("id").unwrap();
+
+            let tx_logs = TRANSFER_LOG.with(|logs| {
+                let logs = logs.borrow();
+                match logs.get(transfer_id.parse::<u64>().unwrap_or_default()) {
+                    None => ic_cdk::trap("Invalid Transfer Id"),
+                    Some(log) => log,
+                }
+            });
+
+            HttpResponseBuilder::ok()
+                .header("Content-Type", "application/json; charset=utf-8")
+                .with_body_and_content_length(serde_json::to_string(&tx_logs).unwrap_or_default())
+                .build()
+        }
+        _ => HttpResponseBuilder::not_found().build(),
+    }
 }
 
 ic_cdk::export_candid!();

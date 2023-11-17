@@ -7,9 +7,9 @@
       "package": "icrc7"
     },
     "factory": {
-      "type": "custom",
-      "candid": "src/factory/service.did",
-      "wasm": "target/wasm32-unknown-unknown/release/factory.wasm"
+      "type": "rust",
+      "candid": "src/factory/factory.did",
+      "package": "factory"
     }
   },
   "defaults": {
